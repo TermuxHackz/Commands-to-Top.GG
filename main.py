@@ -18,8 +18,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Bot Configuration
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-COMMANDS_TOKEN = os.getenv('Commands-TK')
+BOT_TOKEN = os.getenv('BOT_TOKEN') #obv bot token
+COMMANDS_TOKEN = os.getenv('Commands-TK') # Replace this with the name of your v1 token eg maybe you wanna name it TOPGG_TOKENV1 etc 
 APPLICATION_ID = os.getenv('APPLICATION_ID')
 
 # Setup logging
