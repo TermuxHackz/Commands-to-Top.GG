@@ -328,7 +328,7 @@ except Exception as e:
 
 **Common Error Codes:**
 - `401 Unauthorized`: Invalid token
-- `403 Forbidden`: Bot not approved on Top.gg
+- `405 Forbidden`: Mehtod not allowed (ONLY poST request allowed
 - `429 Too Many Requests`: Rate limited
 
 **Solutions:**
