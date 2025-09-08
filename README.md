@@ -104,8 +104,8 @@ APPLICATION_ID=your_bot_application_id
 |----------|----------|-------------|
 | `BOT_TOKEN` | ✅ Yes | Your Discord bot's token |
 | `TOPGG_TOKEN` | ❌ Optional | Token for posting server count to Top.gg |
-| `Commands-TK` | ❌ Optional | Token for posting commands to Top.gg |
-| `APPLICATION_ID` | ❌ Optional | Your bot's application ID |
+| `Commands-TK` | ✅ Optional | Token for posting commands to Top.gg |
+| `APPLICATION_ID` | ✅ Optional | Your bot's application ID |
 
 ## 📡 Top.gg Integration
 
