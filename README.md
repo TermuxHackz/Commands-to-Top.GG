@@ -537,31 +537,12 @@ async def _periodic_server_count(self):
 
 ---
 
-## 🎉 Conclusion
 
-This guide provides everything you need to integrate your Discord bot with Top.gg properly. The `main.py` file includes:
-
-- ✅ Automatic server count posting
-- ✅ Command synchronization
-- ✅ Top.gg command posting
-- ✅ Error handling and logging
-- ✅ Example commands
-- ✅ Proper event handling
-
-### Next Steps
-
-1. **Customize the bot** with your own commands
-2. **Test thoroughly** in a development server
-3. **Deploy to production** and monitor logs
-4. **Submit to Top.gg** for approval
-5. **Monitor performance** and optimize as needed
 
 ### Support
 
 If you encounter issues:
-- Check the troubleshooting section
-- Review Discord.py documentation
+- Join https://discord.gg/dbl and ping @techcodes27 lol 
 - Check Top.gg API documentation
-- Join Discord.py support servers
 
 Happy coding! 🚀✨
