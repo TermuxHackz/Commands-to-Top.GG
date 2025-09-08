@@ -94,7 +94,7 @@ BOT_TOKEN=your_discord_bot_token_here
 
 # Optional but recommended for Top.gg integration
 TOPGG_TOKEN=your_topgg_server_count_token
-Commands-TK=your_topgg_commands_token
+Commands-TK=your_topgg_commands_token (get this from your bot profile under the integration & API tab make sure to give both read and write permissions and name it anything you want)
 APPLICATION_ID=your_bot_application_id
 ```
 
