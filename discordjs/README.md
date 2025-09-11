@@ -39,7 +39,7 @@ This is a Discord bot built with Discord.js that automatically posts bot command
    ```env
    BOT_TOKEN=your_actual_discord_bot_token
    APPLICATION_ID=your_discord_application_id
-   COMMANDS_TK=your_topgg_commands_token
+   COMMANDS_TK=your_topgg_v1_token
    ```
 
 ## Configuration
