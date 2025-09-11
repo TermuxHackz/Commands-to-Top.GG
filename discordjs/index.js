@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, ApplicationCommandType } = require('discord.js');
+const { Client, GatewayIntentBits, ApplicationCommandType } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
@@ -190,50 +190,6 @@ class TopGGIntegration {
     }
 }
 
-class CommandSyncer {
-    constructor(client) {
-        this.client = client;
-    }
-
-    async syncCommands(guildId = null) {
-        try {
-            const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
-            
-            let existingCommands = [];
-            try {
-                if (guildId) {
-                    existingCommands = await rest.get(Routes.applicationGuildCommands(this.client.application.id, guildId));
-                } else {
-                    existingCommands = await rest.get(Routes.applicationCommands(this.client.application.id));
-                }
-                logger.info(`📋 Found ${existingCommands.length} existing commands`);
-
-                let synced;
-                if (guildId) {
-                    synced = await rest.put(
-                        Routes.applicationGuildCommands(this.client.application.id, guildId),
-                        { body: existingCommands }
-                    );
-                    logger.info(`✅ Synced ${synced.length} commands to guild ${guildId}`);
-                } else {
-                    synced = await rest.put(
-                        Routes.applicationCommands(this.client.application.id),
-                        { body: existingCommands }
-                    );
-                    logger.info(`✅ Synced ${synced.length} commands globally`);
-                }
-                
-                return synced.length;
-            } catch (error) {
-                logger.error(`❌ Error syncing commands: ${error.message}`);
-                return 0;
-            }
-        } catch (error) {
-            logger.error(`❌ Failed to sync commands: ${error.message}`);
-            return 0;
-        }
-    }
-}
 
 // Basic command handling
 client.on('interactionCreate', async interaction => {
@@ -247,20 +203,9 @@ client.once('clientReady', async () => {
     logger.info(`📊 Connected to ${client.guilds.cache.size} guilds`);
     
     const topgg = new TopGGIntegration(client);
-    const syncer = new CommandSyncer(client);
     
-    try {
-        const syncedCount = await syncer.syncCommands();
-        logger.info(`✅ Command sync completed: ${syncedCount} commands`);
-    } catch (error) {
-        logger.error(`❌ Command sync failed: ${error.message}`);
-        try {
-            const existingCommands = await client.application.commands.fetch();
-            logger.info(`📋 Found ${existingCommands.size} existing commands`);
-        } catch (fetchError) {
-            logger.error(`❌ Failed to fetch existing commands: ${fetchError.message}`);
-        }
-    }
+    // Command syncing removed to prevent registration errors
+    logger.info('ℹ️ Command syncing disabled - no Discord API command registration will occur');
     
     try {
         await topgg.startPeriodicUpdates();
