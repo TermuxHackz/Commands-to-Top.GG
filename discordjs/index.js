@@ -209,8 +209,21 @@ class CommandSyncer {
         try {
             const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
             
-            // Define commands
-            const commands = [
+            // First, get existing commands to preserve Entry Point commands
+            let existingCommands = [];
+            try {
+                if (guildId) {
+                    existingCommands = await rest.get(Routes.applicationGuildCommands(this.client.application.id, guildId));
+                } else {
+                    existingCommands = await rest.get(Routes.applicationCommands(this.client.application.id));
+                }
+                logger.info(`📋 Found ${existingCommands.length} existing commands`);
+            } catch (fetchError) {
+                logger.warn(`⚠️ Could not fetch existing commands: ${fetchError.message}`);
+            }
+            
+            // Define new commands we want to add/update
+            const newCommands = [
                 new SlashCommandBuilder()
                     .setName('ping')
                     .setDescription('Check bot latency'),
@@ -219,19 +232,35 @@ class CommandSyncer {
                     .setDescription('Get bot information')
             ].map(command => command.toJSON());
 
+            // Merge existing commands with new ones, avoiding duplicates
+            const allCommands = [...existingCommands];
+            
+            for (const newCmd of newCommands) {
+                const existingIndex = allCommands.findIndex(cmd => cmd.name === newCmd.name);
+                if (existingIndex >= 0) {
+                    // Update existing command
+                    allCommands[existingIndex] = newCmd;
+                    logger.info(`🔄 Updating existing command: ${newCmd.name}`);
+                } else {
+                    // Add new command
+                    allCommands.push(newCmd);
+                    logger.info(`➕ Adding new command: ${newCmd.name}`);
+                }
+            }
+
             let synced;
             if (guildId) {
                 // Sync to specific guild (faster for testing)
                 synced = await rest.put(
                     Routes.applicationGuildCommands(this.client.application.id, guildId),
-                    { body: commands }
+                    { body: allCommands }
                 );
                 logger.info(`✅ Synced ${synced.length} commands to guild ${guildId}`);
             } else {
                 // Sync globally (takes up to 1 hour to propagate)
                 synced = await rest.put(
                     Routes.applicationCommands(this.client.application.id),
-                    { body: commands }
+                    { body: allCommands }
                 );
                 logger.info(`✅ Synced ${synced.length} commands globally`);
             }
@@ -240,6 +269,60 @@ class CommandSyncer {
             
         } catch (error) {
             logger.error(`❌ Failed to sync commands: ${error.message}`);
+            
+            // If sync fails due to Entry Point command, try individual command creation
+            if (error.message.includes('Entry Point')) {
+                logger.info('🔄 Attempting individual command registration...');
+                return await this.createCommandsIndividually(guildId);
+            }
+            
+            return 0;
+        }
+    }
+
+    async createCommandsIndividually(guildId = null) {
+        try {
+            const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
+            
+            const commands = [
+                new SlashCommandBuilder()
+                    .setName('ping')
+                    .setDescription('Check bot latency'),
+                new SlashCommandBuilder()
+                    .setName('info')
+                    .setDescription('Get bot information')
+            ];
+
+            let createdCount = 0;
+            
+            for (const command of commands) {
+                try {
+                    if (guildId) {
+                        await rest.post(
+                            Routes.applicationGuildCommands(this.client.application.id, guildId),
+                            { body: command.toJSON() }
+                        );
+                    } else {
+                        await rest.post(
+                            Routes.applicationCommands(this.client.application.id),
+                            { body: command.toJSON() }
+                        );
+                    }
+                    logger.info(`✅ Created command: ${command.name}`);
+                    createdCount++;
+                } catch (cmdError) {
+                    if (cmdError.message.includes('already exists')) {
+                        logger.info(`ℹ️ Command ${command.name} already exists, skipping`);
+                    } else {
+                        logger.error(`❌ Failed to create command ${command.name}: ${cmdError.message}`);
+                    }
+                }
+            }
+            
+            return createdCount;
+            
+        } catch (error) {
+            logger.error(`❌ Failed to create commands individually: ${error.message}`);
             return 0;
         }
     }
@@ -269,8 +352,8 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Bot events
-client.once('ready', async () => {
+// Bot events - Use clientReady instead of ready to avoid deprecation warning
+client.once('clientReady', async () => {
     logger.info(`🚀 Bot logged in as ${client.user.tag} (ID: ${client.user.id})`);
     logger.info(`📊 Connected to ${client.guilds.cache.size} guilds`);
     
@@ -284,6 +367,13 @@ client.once('ready', async () => {
         logger.info(`✅ Command sync completed: ${syncedCount} commands`);
     } catch (error) {
         logger.error(`❌ Command sync failed: ${error.message}`);
+        // Try to get existing commands instead of syncing new ones
+        try {
+            const existingCommands = await client.application.commands.fetch();
+            logger.info(`📋 Found ${existingCommands.size} existing commands`);
+        } catch (fetchError) {
+            logger.error(`❌ Failed to fetch existing commands: ${fetchError.message}`);
+        }
     }
     
     // Start Top.gg integration
@@ -294,13 +384,19 @@ client.once('ready', async () => {
         logger.error(`❌ Top.gg integration failed: ${error.message}`);
     }
     
-    // Post initial commands
-    try {
-        await topgg.postCommandsToTopGG();
-        logger.info('✅ Initial Top.gg commands posted');
-    } catch (error) {
-        logger.error(`❌ Failed to post initial Top.gg commands: ${error.message}`);
-    }
+    // Post initial commands (with delay to ensure commands are ready)
+    setTimeout(async () => {
+        try {
+            await topgg.postCommandsToTopGG();
+            logger.info('✅ Initial Top.gg commands posted');
+        } catch (error) {
+            logger.error(`❌ Failed to post initial Top.gg commands: ${error.message}`);
+            if (error.message.includes('401')) {
+                logger.error('❌ Top.gg authentication failed. Please check your COMMANDS_TK token.');
+                logger.info('💡 Make sure your Top.gg token has the correct permissions and is not expired.');
+            }
+        }
+    }, 2000); // Wait 2 seconds for commands to be fully registered
 });
 
 client.on('guildCreate', guild => {
