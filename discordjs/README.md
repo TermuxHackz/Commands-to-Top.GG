@@ -113,7 +113,7 @@ The bot includes two example slash commands:
 |----------|-------------|----------|
 | `BOT_TOKEN` | Discord bot token | Yes |
 | `APPLICATION_ID` | Discord application ID | Yes |
-| `COMMANDS_TK` | Top.gg commands API token | No |
+| `COMMANDS_TK` | Top.gg commands API token | DUH!! |
 
 ## Logging
 
@@ -150,17 +150,6 @@ This JavaScript version maintains the same functionality as the original Python 
 4. Test thoroughly
 5. Submit a pull request
 
-## License
-
-This project is licensed under the MIT License.
-
-## Support
-
-If you encounter any issues:
-1. Check the logs in the `logs/` directory
-2. Ensure all environment variables are set correctly
-3. Verify your Discord bot has the necessary permissions
-4. Check that your Top.gg token is valid (if using Top.gg integration)
 
 ## Troubleshooting
 
