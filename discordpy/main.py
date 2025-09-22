@@ -18,9 +18,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Bot Configuration
-BOT_TOKEN = os.getenv('BOT_TOKEN') #obv bot token
-COMMANDS_TOKEN = os.getenv('Commands-TK') # Replace this with the name of your v1 token eg maybe you wanna name it TOPGG_TOKENV1 etc 
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+COMMANDS_TOKEN = os.getenv('Commands-TK')
 APPLICATION_ID = os.getenv('APPLICATION_ID')
+
+# Decorator for excluding commands from Top.gg
+def exclude_from_topgg(func):
+    """
+    Decorator to exclude commands from Top.gg posting
+    
+    Usage:
+    @bot.tree.command(name="admin", description="Admin command")
+    @exclude_from_topgg
+    async def admin_command(interaction: discord.Interaction):
+        await interaction.response.send_message("Admin only!")
+    """
+    func._exclude_from_topgg = True
+    return func
 
 # Setup logging
 def setup_logging():
@@ -87,19 +101,46 @@ class TopGGIntegration:
             return False
 
     async def _get_bot_commands_for_topgg(self) -> List[Dict]:
-        """Convert bot's commands to Top.gg API format"""
+        """Convert bot's commands to Top.gg API format with decorator exclusions"""
         commands_list = []
+        excluded_count = 0
         
         # Get all slash commands and context menus
         for command in self.bot.tree.get_commands():
             try:
+                # Check if command is excluded via decorator
+                if self._is_command_excluded(command):
+                    logging.info(f"🚫 Skipping command '{command.name}' (excluded from Top.gg)")
+                    excluded_count += 1
+                    continue
+                    
                 command_data = await self._convert_command_to_topgg_format(command)
                 if command_data:
                     commands_list.append(command_data)
             except Exception as e:
                 logging.error(f"❌ Error converting command {getattr(command, 'name', 'unknown')}: {e}")
         
+        # Log summary
+        total_commands = len(self.bot.tree.get_commands())
+        logging.info(f"📊 Top.gg command summary: {len(commands_list)} posted, {excluded_count} excluded, {total_commands} total")
+        
         return commands_list
+
+    def _is_command_excluded(self, command) -> bool:
+        """Check if a command should be excluded from Top.gg"""
+        # Check for decorator exclusion on callback
+        if hasattr(command, 'callback') and hasattr(command.callback, '_exclude_from_topgg'):
+            return True
+        
+        # For command groups, check the group itself
+        if hasattr(command, '_callback') and hasattr(command._callback, '_exclude_from_topgg'):
+            return True
+            
+        # Check if the command object itself has the exclusion flag
+        if hasattr(command, '_exclude_from_topgg'):
+            return True
+            
+        return False
 
     async def _convert_command_to_topgg_format(self, command) -> Optional[Dict]:
         """Convert a Discord command to Top.gg API format"""
@@ -274,6 +315,51 @@ async def info(interaction: discord.Interaction):
     
     await interaction.response.send_message(embed=embed)
 
+@bot.tree.command(name="admin_test", description="Admin test command")
+@exclude_from_topgg
+async def admin_test(interaction: discord.Interaction):
+    """This command will NOT appear on Top.gg but still works in Discord"""
+    await interaction.response.send_message("🔒 This is an admin command that's hidden from Top.gg!", ephemeral=True)
+
+@bot.tree.command(name="dev_reload", description="Developer reload command")
+@exclude_from_topgg
+async def dev_reload(interaction: discord.Interaction):
+    """This command will NOT appear on Top.gg but still works in Discord"""
+    await interaction.response.send_message("🔄 This is a dev command hidden from Top.gg!", ephemeral=True)
+
+@bot.tree.command(name="test_hidden", description="Test command that's hidden")
+@exclude_from_topgg
+async def test_hidden(interaction: discord.Interaction):
+    """This command will NOT appear on Top.gg but still works in Discord"""
+    await interaction.response.send_message("🧪 This test command is hidden from Top.gg!", ephemeral=True)
+
+# Example of command group exclusion
+class AdminCommands(app_commands.Group):
+    """Admin command group that will be excluded from Top.gg"""
+    
+    @app_commands.command(name="ban", description="Ban a user")
+    async def ban(self, interaction: discord.Interaction, user: discord.User, reason: str = "No reason provided"):
+        """Ban command within admin group"""
+        if not interaction.user.guild_permissions.ban_members:
+            await interaction.response.send_message("❌ You don't have permission to ban members!", ephemeral=True)
+            return
+        
+        await interaction.response.send_message(f"🔨 Would ban {user.mention} for: {reason} (This is a demo)")
+    
+    @app_commands.command(name="kick", description="Kick a user")
+    async def kick(self, interaction: discord.Interaction, user: discord.User, reason: str = "No reason provided"):
+        """Kick command within admin group"""
+        if not interaction.user.guild_permissions.kick_members:
+            await interaction.response.send_message("❌ You don't have permission to kick members!", ephemeral=True)
+            return
+        
+        await interaction.response.send_message(f"👢 Would kick {user.mention} for: {reason} (This is a demo)")
+
+# Add the admin group and exclude it from Top.gg
+admin_group = AdminCommands(name="admin", description="Admin commands (hidden from Top.gg)")
+exclude_from_topgg(admin_group)
+bot.tree.add_command(admin_group)
+
 # Bot events
 @bot.event
 async def on_ready():
@@ -315,6 +401,47 @@ async def on_guild_join(guild):
 async def on_guild_remove(guild):
     """Called when bot leaves a guild"""
     logging.info(f"📉 Left guild: {guild.name} (ID: {guild.id})")
+
+@bot.event
+async def on_command_error(ctx, error):
+    """Handle command errors"""
+    if isinstance(error, commands.CommandNotFound):
+        return
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ You don't have permission to use this command!")
+    elif isinstance(error, commands.BotMissingPermissions):
+        await ctx.send("❌ I don't have the required permissions!")
+    elif isinstance(error, commands.CommandOnCooldown):
+        await ctx.send(f"⏰ Command is on cooldown. Try again in {error.retry_after:.2f} seconds.")
+    else:
+        logging.error(f"Unexpected error: {error}")
+        await ctx.send("❌ An unexpected error occurred!")
+
+@bot.event
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    """Handle application command errors"""
+    if isinstance(error, app_commands.CommandOnCooldown):
+        await interaction.response.send_message(
+            f"⏰ Command is on cooldown. Try again in {error.retry_after:.2f} seconds.",
+            ephemeral=True
+        )
+    elif isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message(
+            "❌ You don't have permission to use this command!",
+            ephemeral=True
+        )
+    elif isinstance(error, app_commands.BotMissingPermissions):
+        await interaction.response.send_message(
+            "❌ I don't have the required permissions!",
+            ephemeral=True
+        )
+    else:
+        logging.error(f"Unexpected app command error: {error}")
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                "❌ An unexpected error occurred!",
+                ephemeral=True
+            )
 
 async def main():
     """Main function to run the bot"""
